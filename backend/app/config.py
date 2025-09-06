@@ -1,69 +1,48 @@
+# In backend/app/config.py
 """
 Configuration settings for the CROPS Price Tracker Backend
 Path: backend/app/config.py
 """
-
-from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
-from typing import List, Optional
-import os
 from functools import lru_cache
+from typing import List, Optional
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Application settings"""
     
-    model_config = ConfigDict(
-        env_file=".env",
-        case_sensitive=True,
-        extra="allow"
-    )
-    
-    # Database
-    DATABASE_URL: str = "postgresql://crops_admin:SecurePassword123!@localhost:5432/crops_tracker"
-    
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
-    
-    # Security
-    SECRET_KEY: str = "your-jwt-secret-key-here"
+    # --- REQUIRED from your .env file ---
+    DATABASE_URL: str
+    REDIS_URL: str
+    CELERY_BROKER_URL: str
+    CELERY_RESULT_BACKEND: str
+    SECRET_KEY: str
+    ANTHROPIC_API_KEY: Optional[str] = None # For AI features
+
+    # --- OPTIONAL with default values ---
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    
-    # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
     
-    # Scraping
+    # Scraping Settings
     PLAYWRIGHT_HEADLESS: bool = True
     SCRAPING_TIMEOUT: int = 30000
     MAX_RETRIES: int = 3
     
-    # Email (Optional)
-    SMTP_HOST: str = "smtp.gmail.com"
+    # Email Settings
+    SMTP_HOST: Optional[str] = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    EMAIL_FROM: str = "noreply@cropsegypt.com"
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    EMAIL_FROM: Optional[str] = "noreply@cropsegypt.com"
     
     # Environment
     ENVIRONMENT: str = "development"
     
-    # API Settings
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "CROPS Price Tracker"
-    
-    # Pagination
-    DEFAULT_PAGE_SIZE: int = 20
-    MAX_PAGE_SIZE: int = 100
-    
-    # AI Services
-    ANTHROPIC_API_KEY: Optional[str] = None
-    OPENAI_API_KEY: Optional[str] = None
-    
-    # Development
-    DEBUG: bool = False
+    class Config:
+        # This tells Pydantic to look for a file named .env
+        env_file = ".env"
+        env_file_encoding = 'utf-8'
+        case_sensitive = True
 
 @lru_cache()
 def get_settings():

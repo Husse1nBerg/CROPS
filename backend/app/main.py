@@ -15,7 +15,7 @@ from datetime import datetime
 from app.config import settings
 from app.database import engine, Base, get_db
 from app.api import auth, prices, products, stores, scraper
-from app.tasks.celery_app import celery_app
+from app.tasks.celery_app import celery as celery_app
 from app.services.price_service import PriceService
 from app.scrapers import (
     GourmetScraper,

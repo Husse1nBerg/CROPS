@@ -19,3 +19,4 @@ python-dotenv
 httpx
 pytest
 pytest-asyncio
+anthropic 

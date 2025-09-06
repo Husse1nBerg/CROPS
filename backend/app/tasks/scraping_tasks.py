@@ -42,7 +42,7 @@ SCRAPER_MAP = {
 
 def setup_periodic_tasks():
     """Setup periodic scraping tasks"""
-    from app.tasks.celery_app import celery_app
+    from app.tasks.celery_app import celery as celery_app
     
     # Schedule scraping every 6 hours
     celery_app.conf.beat_schedule = {
