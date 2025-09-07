@@ -18,7 +18,7 @@ This terminal runs the FastAPI application using the Uvicorn server. It handles 
 cd /c/crops-price-tracker/backend
 
 ## Activate the Python virtual environment
-python -m venv venv 
+python -m venv venv <br>
 source venv/Scripts/activate
 
 ## Start the Uvicorn server
