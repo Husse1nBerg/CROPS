@@ -67,7 +67,7 @@ This terminal runs the Next.js development server. This is the user-facing part 
 cd /c/crops-price-tracker/frontend
 
 ## Start the Next.js server
-npm run dev
+npm run dev -- -p 3001
 
 
 
