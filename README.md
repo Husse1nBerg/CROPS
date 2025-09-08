@@ -18,6 +18,7 @@ This terminal runs the FastAPI application using the Uvicorn server. It handles 
 cd /c/crops-price-tracker/backend
 
 ## Activate the Python virtual environment
+python -m venv venv <br>
 source venv/Scripts/activate
 
 ## Start the Uvicorn server
@@ -69,6 +70,9 @@ cd /c/crops-price-tracker/frontend
 ## Start the Next.js server
 npm run dev -- -p 3001
 
+## To clear port
+Bash: netstat -ano | findstr :3001 <br>
+CMD: taskkill /PID 12345 /F
 
 
 
