@@ -14,7 +14,8 @@ class Store(Base):
     name = Column(String, nullable=False, unique=True, index=True)
     url = Column(String, nullable=False)
     type = Column(String)  # Online Basket, Talabat App, etc.
-    scraper_class = Column(String)  # Name of the scraper class to use
+    scraper_class = Column(String)  # Name of the scraper class to use (legacy)
+    scraper_module = Column(String)  # Module name for the scraper (e.g., "gourmet_scraper")
     is_active = Column(Boolean, default=True)
     last_scraped = Column(DateTime(timezone=True))
     status = Column(String, default="idle")  # idle, scraping, online, offline

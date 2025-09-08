@@ -4,7 +4,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { toast } from 'react-hot-toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = '/api'; // Use Next.js API routes to avoid CORS
 
 class ApiClient {
   private client: AxiosInstance;
@@ -49,8 +49,8 @@ class ApiClient {
 
   // Auth endpoints
   async login(email: string, password: string) {
-    const response = await this.client.post('/api/auth/login', {
-      username: email, // OAuth2 expects username field
+    const response = await this.client.post('/auth/login', {
+      email, // Use email for our frontend API
       password,
     });
     return response.data;
@@ -62,17 +62,17 @@ class ApiClient {
     password: string;
     full_name?: string;
   }) {
-    const response = await this.client.post('/api/auth/register', data);
+    const response = await this.client.post('/auth/register', data);
     return response.data;
   }
 
   async getSession() {
-    const response = await this.client.get('/api/auth/session');
+    const response = await this.client.get('/auth/session');
     return response.data;
   }
 
   async getCurrentUser() {
-    const response = await this.client.get('/api/auth/me');
+    const response = await this.client.get('/auth/me');
     return response.data;
   }
 
@@ -85,18 +85,18 @@ class ApiClient {
     category?: string;
     is_available?: boolean;
   }) {
-    const response = await this.client.get('/api/prices', { params });
+    const response = await this.client.get('/prices', { params });
     return response.data;
   }
 
   async refreshPrices() {
-    const response = await this.client.post('/api/prices/refresh');
+    const response = await this.client.post('/prices/refresh');
     return response.data;
   }
 
   async getPriceTrends(productId: number, days: number = 7, storeId?: number) {
     const params = { product_id: productId, days, store_id: storeId };
-    const response = await this.client.get('/api/prices/trends', { params });
+    const response = await this.client.get('/prices/trends', { params });
     return response.data;
   }
 
@@ -108,12 +108,12 @@ class ApiClient {
     is_organic?: boolean;
     search?: string;
   }) {
-    const response = await this.client.get('/api/products', { params });
+    const response = await this.client.get('/products', { params });
     return response.data;
   }
 
   async getProduct(id: number) {
-    const response = await this.client.get(`/api/products/${id}`);
+    const response = await this.client.get(`/products/${id}`);
     return response.data;
   }
 
@@ -124,17 +124,17 @@ class ApiClient {
     description?: string;
     is_organic?: boolean;
   }) {
-    const response = await this.client.post('/api/products', data);
+    const response = await this.client.post('/products', data);
     return response.data;
   }
 
   async updateProduct(id: number, data: any) {
-    const response = await this.client.put(`/api/products/${id}`, data);
+    const response = await this.client.put(`/products/${id}`, data);
     return response.data;
   }
 
   async deleteProduct(id: number) {
-    const response = await this.client.delete(`/api/products/${id}`);
+    const response = await this.client.delete(`/products/${id}`);
     return response.data;
   }
 
@@ -144,12 +144,12 @@ class ApiClient {
     limit?: number;
     is_active?: boolean;
   }) {
-    const response = await this.client.get('/api/stores', { params });
+    const response = await this.client.get('/stores', { params });
     return response.data;
   }
 
   async getStore(id: number) {
-    const response = await this.client.get(`/api/stores/${id}`);
+    const response = await this.client.get(`/stores/${id}`);
     return response.data;
   }
 
@@ -160,34 +160,34 @@ class ApiClient {
     scraper_class: string;
     is_active?: boolean;
   }) {
-    const response = await this.client.post('/api/stores', data);
+    const response = await this.client.post('/stores', data);
     return response.data;
   }
 
   async updateStore(id: number, data: any) {
-    const response = await this.client.put(`/api/stores/${id}`, data);
+    const response = await this.client.put(`/stores/${id}`, data);
     return response.data;
   }
 
   async deleteStore(id: number) {
-    const response = await this.client.delete(`/api/stores/${id}`);
+    const response = await this.client.delete(`/stores/${id}`);
     return response.data;
   }
 
   // Scraper endpoints
   async triggerScraping(storeId?: number) {
     const params = storeId ? { store_id: storeId } : {};
-    const response = await this.client.post('/api/scraper/trigger', {}, { params });
+    const response = await this.client.post('/scraper/trigger', {}, { params });
     return response.data;
   }
 
   async getScrapingStatus() {
-    const response = await this.client.get('/api/scraper/status');
+    const response = await this.client.get('/scraper/status');
     return response.data;
   }
 
   async stopScraping() {
-    const response = await this.client.post('/api/scraper/stop');
+    const response = await this.client.post('/scraper/stop');
     return response.data;
   }
 }

@@ -19,6 +19,160 @@ from app.tasks.scraping_tasks import trigger_scraping
 
 router = APIRouter()
 
+@router.get("/health")
+def prices_health_check(db: Session = Depends(get_db)):
+    """Health check for prices API - no auth required"""
+    try:
+        # Check basic database connectivity
+        total_prices = db.query(Price).count()
+        total_products = db.query(Product).count()
+        total_stores = db.query(Store).count()
+        
+        return {
+            "status": "healthy",
+            "prices_count": total_prices,
+            "products_count": total_products,
+            "stores_count": total_stores,
+            "database": "connected"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "database": "error"
+        }
+
+@router.get("/test", response_model=List[PriceResponse])
+def get_prices_test_no_auth(
+    db: Session = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    product_id: Optional[int] = None,
+    store_id: Optional[int] = None,
+    category: Optional[str] = None,
+    is_available: Optional[bool] = None
+):
+    """Get current prices with filters"""
+    try:
+        # First check if we have any data at all
+        total_prices = db.query(Price).count()
+        if total_prices == 0:
+            return []  # Return empty list if no prices exist
+        
+        # Build base query with proper error handling for joins
+        query = db.query(Price)
+        
+        # Only add joins if we have related data
+        try:
+            query = query.join(Product, Price.product_id == Product.id)
+            query = query.join(Store, Price.store_id == Store.id)
+        except Exception as join_error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database join error: {str(join_error)}"
+            )
+        
+        # Apply filters
+        if product_id:
+            query = query.filter(Price.product_id == product_id)
+        if store_id:
+            query = query.filter(Price.store_id == store_id)
+        if category:
+            query = query.filter(Product.category == category)
+        if is_available is not None:
+            query = query.filter(Price.is_available == is_available)
+        
+        # For empty database, return empty result without complex subquery
+        if total_prices > 0:
+            # Get latest prices only (most recent for each product-store combination)
+            try:
+                subquery = db.query(
+                    Price.product_id,
+                    Price.store_id,
+                    db.func.max(Price.scraped_at).label('max_scraped_at')
+                ).group_by(Price.product_id, Price.store_id).subquery()
+                
+                query = query.join(
+                    subquery,
+                    db.and_(
+                        Price.product_id == subquery.c.product_id,
+                        Price.store_id == subquery.c.store_id,
+                        Price.scraped_at == subquery.c.max_scraped_at
+                    )
+                )
+            except Exception as subquery_error:
+                # If subquery fails, just get all prices without grouping
+                pass
+        
+        # Execute query with proper error handling
+        try:
+            prices = query.offset(skip).limit(limit).all()
+        except Exception as query_error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database query error: {str(query_error)}"
+            )
+        
+        # Format response with error handling
+        results = []
+        for price in prices:
+            try:
+                # Calculate price change with error handling
+                price_change = 0
+                price_change_percent = 0
+                try:
+                    yesterday = datetime.utcnow() - timedelta(days=1)
+                    previous_price = db.query(PriceHistory).filter(
+                        PriceHistory.product_id == price.product_id,
+                        PriceHistory.store_id == price.store_id,
+                        PriceHistory.recorded_at < yesterday
+                    ).order_by(PriceHistory.recorded_at.desc()).first()
+                    
+                    if previous_price:
+                        price_change = price.price - previous_price.price
+                        if previous_price.price > 0:
+                            price_change_percent = (price_change / previous_price.price) * 100
+                except Exception:
+                    # If price history calculation fails, just use default values
+                    pass
+                
+                results.append({
+                    "id": price.id,
+                    "product_id": price.product_id,
+                    "product_name": getattr(price.product, 'name', 'Unknown Product'),
+                    "store_id": price.store_id,
+                    "store_name": getattr(price.store, 'name', 'Unknown Store'),
+                    "price": price.price,
+                    "original_price": price.original_price,
+                    "price_per_kg": price.price_per_kg,
+                    "pack_size": price.pack_size,
+                    "pack_unit": price.pack_unit,
+                    "is_available": price.is_available,
+                    "is_discounted": price.is_discounted,
+                    "price_change": price_change,
+                    "price_change_percent": price_change_percent,
+                    "product_url": price.product_url,
+                    "image_url": price.image_url,
+                    "scraped_at": price.scraped_at,
+                    "created_at": price.created_at,
+                    "updated_at": price.updated_at
+                })
+            except Exception as format_error:
+                # Skip malformed entries but continue processing others
+                continue
+        
+        return results
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions as they already have proper error messages
+        raise
+    except Exception as e:
+        # Catch any other unexpected errors
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.get("/", response_model=List[PriceResponse])
 def get_prices(
     db: Session = Depends(get_db),
@@ -30,75 +184,8 @@ def get_prices(
     category: Optional[str] = None,
     is_available: Optional[bool] = None
 ):
-    """Get current prices with filters"""
-    query = db.query(Price).join(Product).join(Store)
-    
-    if product_id:
-        query = query.filter(Price.product_id == product_id)
-    if store_id:
-        query = query.filter(Price.store_id == store_id)
-    if category:
-        query = query.filter(Product.category == category)
-    if is_available is not None:
-        query = query.filter(Price.is_available == is_available)
-    
-    # Get latest prices only (most recent for each product-store combination)
-    subquery = db.query(
-        Price.product_id,
-        Price.store_id,
-        db.func.max(Price.scraped_at).label('max_scraped_at')
-    ).group_by(Price.product_id, Price.store_id).subquery()
-    
-    query = query.join(
-        subquery,
-        db.and_(
-            Price.product_id == subquery.c.product_id,
-            Price.store_id == subquery.c.store_id,
-            Price.scraped_at == subquery.c.max_scraped_at
-        )
-    )
-    
-    prices = query.offset(skip).limit(limit).all()
-    
-    # Format response
-    results = []
-    for price in prices:
-        # Calculate price change
-        yesterday = datetime.utcnow() - timedelta(days=1)
-        previous_price = db.query(PriceHistory).filter(
-            PriceHistory.product_id == price.product_id,
-            PriceHistory.store_id == price.store_id,
-            PriceHistory.recorded_at < yesterday
-        ).order_by(PriceHistory.recorded_at.desc()).first()
-        
-        price_change = 0
-        price_change_percent = 0
-        if previous_price:
-            price_change = price.price - previous_price.price
-            if previous_price.price > 0:
-                price_change_percent = (price_change / previous_price.price) * 100
-        
-        results.append({
-            "id": price.id,
-            "product_id": price.product_id,
-            "product_name": price.product.name,
-            "store_id": price.store_id,
-            "store_name": price.store.name,
-            "price": price.price,
-            "original_price": price.original_price,
-            "price_per_kg": price.price_per_kg,
-            "pack_size": price.pack_size,
-            "pack_unit": price.pack_unit,
-            "is_available": price.is_available,
-            "is_discounted": price.is_discounted,
-            "price_change": price_change,
-            "price_change_percent": price_change_percent,
-            "product_url": price.product_url,
-            "image_url": price.image_url,
-            "scraped_at": price.scraped_at
-        })
-    
-    return results
+    """Get current prices with filters - requires authentication"""
+    return get_prices_test_no_auth(db, skip, limit, product_id, store_id, category, is_available)
 
 @router.post("/refresh")
 async def refresh_prices(

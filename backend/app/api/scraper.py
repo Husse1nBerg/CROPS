@@ -1,16 +1,18 @@
 """
-Scraper API endpoints
+Scraper API endpoints - Updated for real-time grocery store scraping
 Path: backend/app/api/scraper.py
 """
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict
+import asyncio
 
 from app.database import get_db
 from app.models.store import Store
 from app.api.auth import get_current_user
-from app.tasks.scraping_tasks import scrape_store_task, scrape_all_stores_task
+from app.tasks.scraping_tasks import scrape_store_task, scrape_all_stores_task, search_specific_product_task
+from app.scrapers.scraper_manager import scraper_manager
 
 router = APIRouter()
 
@@ -107,4 +109,100 @@ def stop_scraping(
     return {
         "message": "Scraping stopped",
         "affected_stores": len(stores)
+    }
+
+@router.post("/search/{product_name}")
+def search_product_across_stores(
+    product_name: str,
+    background_tasks: BackgroundTasks,
+    current_user = Depends(get_current_user)
+):
+    """Search for a specific product across all active stores"""
+    # Trigger background search task
+    background_tasks.add_task(search_specific_product_task.delay, product_name)
+    
+    return {
+        "message": f"Product search initiated for '{product_name}'",
+        "product": product_name
+    }
+
+@router.get("/target-products")
+def get_target_products(current_user = Depends(get_current_user)):
+    """Get the list of target products being tracked"""
+    target_products = scraper_manager.get_target_products()
+    
+    category_a = [p for p in target_products if p["category"] == "A"]
+    category_b = [p for p in target_products if p["category"] == "B"]
+    
+    return {
+        "total_products": len(target_products),
+        "category_a": category_a,
+        "category_b": category_b,
+        "summary": {
+            "category_a_count": len(category_a),
+            "category_b_count": len(category_b)
+        }
+    }
+
+@router.post("/test-scraper/{store_id}")
+async def test_single_scraper(
+    store_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Test scraping for a single store (immediate response, not background task)"""
+    store = db.query(Store).filter(Store.id == store_id).first()
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+    
+    if not store.is_active:
+        raise HTTPException(status_code=400, detail="Store is not active")
+    
+    try:
+        # Run scraping immediately (not as background task)
+        products = await scraper_manager.scrape_single_store(store_id)
+        
+        return {
+            "store_id": store_id,
+            "store_name": store.name,
+            "products_found": len(products),
+            "sample_products": [
+                {
+                    "name": p.name,
+                    "price": float(p.price),
+                    "price_per_kg": float(p.price_per_kg) if p.price_per_kg else None,
+                    "is_available": p.is_available,
+                    "is_organic": p.is_organic
+                }
+                for p in products[:5]  # Show first 5 products
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scraping error: {str(e)}")
+
+@router.get("/stores-summary")
+def get_stores_summary(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """Get summary of all stores and their scraping status"""
+    stores = db.query(Store).all()
+    
+    return {
+        "total_stores": len(stores),
+        "active_stores": len([s for s in stores if s.is_active]),
+        "scraping_now": len([s for s in stores if s.status == "scraping"]),
+        "stores": [
+            {
+                "id": store.id,
+                "name": store.name,
+                "url": store.url,
+                "status": store.status,
+                "is_active": store.is_active,
+                "last_scraped": store.last_scraped,
+                "scraper_module": store.scraper_module
+            }
+            for store in stores
+        ]
     }

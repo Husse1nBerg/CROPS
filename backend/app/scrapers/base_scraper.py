@@ -64,34 +64,33 @@ class BaseScraper(ABC):
         self.products_to_track = self._load_products_list()
         
     def _load_products_list(self) -> List[Dict]:
-        """Load the list of products to track from configuration"""
-        # These come from the Excel file - Categories A & B
+        """Load the list of products to track - EXACTLY matching user specifications"""
         return [
-            # Category A
-            {"name": "Cucumbers", "category": "A", "keywords": ["cucumber", "خيار"]},
-            {"name": "Tomatoes", "category": "A", "keywords": ["tomato", "tomatoes", "طماطم"]},
-            {"name": "Cherry Tomatoes", "category": "A", "keywords": ["cherry tomato", "طماطم كرزية"]},
-            {"name": "Capsicum Red and Yellow Mix", "category": "A", "keywords": ["capsicum mix", "pepper mix"]},
-            {"name": "Capsicum Red", "category": "A", "keywords": ["red capsicum", "red pepper", "فلفل أحمر"]},
-            {"name": "Capsicum Yellow", "category": "A", "keywords": ["yellow capsicum", "yellow pepper", "فلفل أصفر"]},
-            {"name": "Chili Pepper", "category": "A", "keywords": ["chili", "hot pepper", "فلفل حار"]},
-            {"name": "Arugula", "category": "A", "keywords": ["arugula", "rocket", "جرجير"]},
-            {"name": "Parsley", "category": "A", "keywords": ["parsley", "بقدونس"]},
-            {"name": "Coriander", "category": "A", "keywords": ["coriander", "cilantro", "كزبرة"]},
-            {"name": "Mint", "category": "A", "keywords": ["mint", "نعناع"]},
-            {"name": "Tuscan Kale", "category": "A", "keywords": ["tuscan kale", "lacinato kale", "dinosaur kale"]},
-            {"name": "Italian Basil", "category": "A", "keywords": ["basil", "italian basil", "ريحان"]},
+            # Category A - PRIMARY PRODUCTS
+            {"name": "Cucumbers", "category": "A", "keywords": ["cucumber", "cucumbers", "خيار"]},
+            {"name": "Tomatoes", "category": "A", "keywords": ["tomato", "tomatoes", "طماطم", "beef tomato"]},
+            {"name": "Cherry Tomatoes", "category": "A", "keywords": ["cherry tomato", "cherry tomatoes", "طماطم كرزية", "cocktail tomatoes"]},
+            {"name": "Capsicum Red and Yellow Mix", "category": "A", "keywords": ["red yellow pepper mix", "mixed capsicum", "red yellow bell pepper", "capsicum mix"]},
+            {"name": "Capsicum Red", "category": "A", "keywords": ["red capsicum", "red pepper", "red bell pepper", "فلفل أحمر"]},
+            {"name": "Capsicum Yellow", "category": "A", "keywords": ["yellow capsicum", "yellow pepper", "yellow bell pepper", "فلفل أصفر"]},
+            {"name": "Chili Pepper", "category": "A", "keywords": ["chili", "chilli", "hot pepper", "jalapeño", "فلفل حار", "cayenne"]},
+            {"name": "Arugula", "category": "A", "keywords": ["arugula", "rocket", "rocket leaves", "جرجير", "roquette"]},
+            {"name": "Parsley", "category": "A", "keywords": ["parsley", "flat parsley", "curly parsley", "بقدونس", "petroselinum"]},
+            {"name": "Coriander", "category": "A", "keywords": ["coriander", "cilantro", "fresh coriander", "كزبرة", "dhania"]},
+            {"name": "Mint", "category": "A", "keywords": ["mint", "fresh mint", "spearmint", "نعناع", "mentha"]},
+            {"name": "Tuscan Kale", "category": "A", "keywords": ["tuscan kale", "lacinato kale", "dinosaur kale", "cavolo nero", "black kale"]},
+            {"name": "Italian Basil", "category": "A", "keywords": ["italian basil", "basil", "sweet basil", "ريحان", "genovese basil", "ocimum basilicum"]},
             
-            # Category B
-            {"name": "Colored Cherry Tomatoes", "category": "B", "keywords": ["colored cherry", "rainbow tomatoes"]},
-            {"name": "Capsicum Green", "category": "B", "keywords": ["green capsicum", "green pepper", "فلفل أخضر"]},
-            {"name": "Italian Arugula", "category": "B", "keywords": ["italian arugula", "wild arugula"]},
-            {"name": "Chives", "category": "B", "keywords": ["chives", "ثوم معمر"]},
-            {"name": "Curly Kale", "category": "B", "keywords": ["curly kale", "kale"]},
-            {"name": "Batavia Lettuce", "category": "B", "keywords": ["batavia", "batavia lettuce"]},
-            {"name": "Ice Berg Lettuce", "category": "B", "keywords": ["iceberg", "iceberg lettuce", "خس آيسبرغ"]},
-            {"name": "Oak Leaf Lettuce", "category": "B", "keywords": ["oak leaf", "oakleaf lettuce"]},
-            {"name": "Romain Lettuce", "category": "B", "keywords": ["romaine", "romain lettuce", "خس روماني"]}
+            # Category B - SECONDARY PRODUCTS
+            {"name": "Colored Cherry Tomatoes", "category": "B", "keywords": ["colored cherry tomato", "rainbow cherry tomatoes", "mixed cherry tomatoes", "yellow cherry", "orange cherry"]},
+            {"name": "Capsicum Green", "category": "B", "keywords": ["green capsicum", "green pepper", "green bell pepper", "فلفل أخضر"]},
+            {"name": "Italian Arugula", "category": "B", "keywords": ["italian arugula", "wild arugula", "italian rocket", "rucola italiana"]},
+            {"name": "Chives", "category": "B", "keywords": ["chives", "green onion", "spring onion", "ثوم معمر", "allium schoenoprasum"]},
+            {"name": "Curly Kale", "category": "B", "keywords": ["curly kale", "kale", "scots kale", "borecole", "leaf cabbage"]},
+            {"name": "Batavia Lettuce", "category": "B", "keywords": ["batavia lettuce", "batavia", "french crisp lettuce", "summer crisp"]},
+            {"name": "Ice Berg Lettuce", "category": "B", "keywords": ["iceberg lettuce", "iceberg", "crisphead lettuce", "خس آيسبرغ"]},
+            {"name": "Oak Leaf Lettuce", "category": "B", "keywords": ["oak leaf lettuce", "oakleaf lettuce", "red oak", "green oak", "lollo"]},
+            {"name": "Romain Lettuce", "category": "B", "keywords": ["romaine lettuce", "romain lettuce", "cos lettuce", "خس روماني"]}
         ]
     
     async def initialize_browser(self, headless: bool = True):

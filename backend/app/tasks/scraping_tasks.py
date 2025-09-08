@@ -1,5 +1,5 @@
 """
-Celery tasks for web scraping
+Celery tasks for web scraping - Updated for real-time grocery store scraping
 Path: backend/app/tasks/scraping_tasks.py
 """
 
@@ -15,165 +15,109 @@ from app.models.store import Store
 from app.models.product import Product
 from app.models.price import Price
 from app.models.price_history import PriceHistory
-from app.scrapers import (
-    GourmetScraper,
-    RDNAScraper,
-    MetroScraper,
-    SpinneysScraper,
-    RabbitScraper,
-    TalabatScraper,
-    InstashopScraper,
-    BreadfastScraper
-)
+from app.scrapers.scraper_manager import scraper_manager
 
 logger = logging.getLogger(__name__)
 
-# Map store names to scraper classes
-SCRAPER_MAP = {
-    "GourmetScraper": GourmetScraper,
-    "RDNAScraper": RDNAScraper,
-    "MetroScraper": MetroScraper,
-    "SpinneysScraper": SpinneysScraper,
-    "RabbitScraper": RabbitScraper,
-    "TalabatScraper": TalabatScraper,
-    "InstashopScraper": InstashopScraper,
-    "BreadfastScraper": BreadfastScraper
-}
-
 def setup_periodic_tasks():
-    """Setup periodic scraping tasks"""
+    """Setup periodic scraping tasks for real-time grocery data"""
     from app.tasks.celery_app import celery as celery_app
     
-    # Schedule scraping every 6 hours
+    # Schedule scraping every 4 hours for fresh produce (perishable items need frequent updates)
     celery_app.conf.beat_schedule = {
-        'scrape-all-stores': {
+        'scrape-all-stores-frequent': {
             'task': 'app.tasks.scraping_tasks.scrape_all_stores_task',
-            'schedule': crontab(hour='*/6'),  # Every 6 hours
+            'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours at the top of the hour
         },
+        'scrape-priority-products': {
+            'task': 'app.tasks.scraping_tasks.scrape_priority_products_task',
+            'schedule': crontab(minute=0, hour='*/2'),  # Every 2 hours for high-priority items
+        }
     }
 
 @shared_task
 def scrape_store_task(store_id: int):
-    """Scrape a specific store"""
-    db = SessionLocal()
+    """Scrape a specific store using the centralized manager"""
+    logger.info(f"Starting scrape task for store ID: {store_id}")
+    
+    # Create event loop for async operation
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        store = db.query(Store).filter(Store.id == store_id).first()
-        if not store:
-            logger.error(f"Store {store_id} not found")
-            return
-        
-        # Get scraper class
-        scraper_class = SCRAPER_MAP.get(store.scraper_class)
-        if not scraper_class:
-            logger.error(f"Scraper class {store.scraper_class} not found")
-            store.status = "offline"
-            db.commit()
-            return
-        
-        # Update store status
-        store.status = "scraping"
-        db.commit()
-        
-        # Run scraper
-        scraper = scraper_class()
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        products_data = loop.run_until_complete(scraper.scrape())
-        loop.close()
-        
-        # Save scraped data
-        save_scraped_data(db, store_id, products_data)
-        
-        # Update store status
-        store.status = "online"
-        store.last_scraped = datetime.utcnow()
-        db.commit()
-        
-        logger.info(f"Successfully scraped {len(products_data)} products from {store.name}")
+        products_data = loop.run_until_complete(scraper_manager.scrape_single_store(store_id))
+        logger.info(f"Completed scrape task for store ID {store_id}: {len(products_data)} products")
+        return len(products_data)
         
     except Exception as e:
-        logger.error(f"Error scraping store {store_id}: {e}")
-        if store:
-            store.status = "offline"
-            db.commit()
+        logger.error(f"Error in scrape_store_task for store {store_id}: {e}")
+        return 0
     finally:
-        db.close()
+        loop.close()
 
 @shared_task
 def scrape_all_stores_task():
-    """Scrape all active stores"""
-    db = SessionLocal()
+    """Scrape all active stores using the centralized manager"""
+    logger.info("Starting scrape task for all active stores")
+    
+    # Create event loop for async operation
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        stores = db.query(Store).filter(Store.is_active == True).all()
+        results = loop.run_until_complete(scraper_manager.scrape_all_stores())
         
-        for store in stores:
-            scrape_store_task.delay(store.id)
+        total_products = sum(len(products) for products in results.values())
+        logger.info(f"Completed scrape task for all stores: {total_products} total products from {len(results)} stores")
         
-        logger.info(f"Initiated scraping for {len(stores)} stores")
+        return {
+            "stores_scraped": len(results),
+            "total_products": total_products,
+            "results": {store: len(products) for store, products in results.items()}
+        }
         
     except Exception as e:
-        logger.error(f"Error initiating scraping: {e}")
+        logger.error(f"Error in scrape_all_stores_task: {e}")
+        return {"error": str(e)}
     finally:
-        db.close()
+        loop.close()
 
-def save_scraped_data(db, store_id: int, products_data: List):
-    """Save scraped product data to database"""
+@shared_task 
+def scrape_priority_products_task():
+    """Scrape only high-priority Category A products more frequently"""
+    logger.info("Starting priority products scraping task")
+    
+    # Get Category A products (higher priority)
+    priority_products = [
+        "Tomatoes", "Cherry Tomatoes", "Cucumbers", "Capsicum Red", 
+        "Capsicum Yellow", "Arugula", "Parsley", "Coriander", "Mint"
+    ]
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        # Get all products
-        products = db.query(Product).all()
-        product_map = {p.name.lower(): p for p in products}
-        
-        for data in products_data:
-            # Find matching product
-            product = product_map.get(data.name.lower())
-            if not product:
-                # Create new product if not exists
-                product = Product(
-                    name=data.name,
-                    category=data.category or "A",
-                    is_organic=data.is_organic
-                )
-                db.add(product)
-                db.flush()
-            
-            # Check if price already exists
-            existing_price = db.query(Price).filter(
-                Price.product_id == product.id,
-                Price.store_id == store_id
-            ).order_by(Price.scraped_at.desc()).first()
-            
-            # Save new price
-            new_price = Price(
-                product_id=product.id,
-                store_id=store_id,
-                price=float(data.price),
-                original_price=float(data.original_price) if data.original_price else None,
-                price_per_kg=float(data.price_per_kg) if data.price_per_kg else None,
-                pack_size=data.pack_size,
-                pack_unit=data.pack_unit,
-                is_available=data.is_available,
-                is_discounted=data.is_discounted,
-                product_url=data.product_url,
-                image_url=data.image_url
+        all_results = {}
+        for product in priority_products:
+            results = loop.run_until_complete(
+                scraper_manager.search_product_across_stores(product)
             )
-            db.add(new_price)
+            all_results[product] = results
             
-            # Add to price history
-            history = PriceHistory(
-                product_id=product.id,
-                store_id=store_id,
-                price=float(data.price),
-                price_per_kg=float(data.price_per_kg) if data.price_per_kg else None,
-                is_available=data.is_available
-            )
-            db.add(history)
+        total_found = sum(
+            len(store_results) 
+            for product_results in all_results.values() 
+            for store_results in product_results.values()
+        )
         
-        db.commit()
+        logger.info(f"Priority scraping complete: {total_found} products found")
+        return {"priority_products_found": total_found}
         
     except Exception as e:
-        logger.error(f"Error saving scraped data: {e}")
-        db.rollback()
-        raise
+        logger.error(f"Error in scrape_priority_products_task: {e}")
+        return {"error": str(e)}
+    finally:
+        loop.close()
 
 def trigger_scraping(db):
     """Trigger scraping for all stores (called from API)"""
@@ -183,3 +127,32 @@ def trigger_scraping(db):
         scrape_store_task.delay(store.id)
     
     return len(stores)
+
+@shared_task
+def search_specific_product_task(product_name: str):
+    """Search for a specific product across all stores"""
+    logger.info(f"Starting search task for product: {product_name}")
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        results = loop.run_until_complete(
+            scraper_manager.search_product_across_stores(product_name)
+        )
+        
+        total_found = sum(len(store_results) for store_results in results.values())
+        logger.info(f"Search complete for '{product_name}': {total_found} products found across {len(results)} stores")
+        
+        return {
+            "product": product_name,
+            "total_found": total_found,
+            "stores_searched": len(results),
+            "results": {store: len(products) for store, products in results.items()}
+        }
+        
+    except Exception as e:
+        logger.error(f"Error searching for product '{product_name}': {e}")
+        return {"error": str(e)}
+    finally:
+        loop.close()
