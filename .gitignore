@@ -86,4 +86,4 @@ tmp/
 temp/
 
 #api keys
-backend/.env
+backend/.env.env
