@@ -70,6 +70,9 @@ cd /c/crops-price-tracker/frontend
 ## Start the Next.js server
 npm run dev -- -p 3001
 
+## To clear port
+Bash: netstat -ano | findstr :3001 <br>
+CMD: taskkill /PID 12345 /F
 
 
 
